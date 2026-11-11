@@ -29,3 +29,6 @@ index.html · manifest.webmanifest · sw.js · icon.svg · icon-maskable.svg · 
 
 ## Приватность
 Сетевых запросов нет. В localStorage — только частота и настройка звука.
+
+## Об авторстве
+Идея, постановка задачи и дизайн — vadimoleris. Код написан при помощи ИИ Qwen (Alibaba) с совместной доводкой.
