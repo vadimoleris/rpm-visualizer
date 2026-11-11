@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Обороты — визуализатор частоты вращения</title>
+<meta name="description" content="Визуализатор оборотов: 80 об/мин для ручного аварийного генератора и любые частоты до 12000 с честным замедлением. Офлайн.">
+<meta name="theme-color" content="#0c0f13">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="./icon.svg">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Обороты">
+<style>
+:root{
+  --bg:#0c0f13;--surface:#14181e;--surface2:#1a2027;--ink:#e8edf2;--muted:#8b97a3;
+  --line:#2a323c;--track:#39424c;--accent:#00e5ff;--accent-ink:#7ff0ff;--accent-soft:#0e2b33;
+  --amber:#e5b567;--amber-soft:#332a16;--on-accent:#04141a;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 12px 32px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+::selection{background:var(--accent-soft)}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  background:radial-gradient(900px 480px at 50% -120px,#111a22,transparent 70%),var(--bg);
+  color:var(--ink);min-height:100dvh;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+button,input{font:inherit;color:inherit;touch-action:manipulation}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{max-width:430px;margin:0 auto;padding:12px 16px calc(20px + env(safe-area-inset-bottom))}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px;row-gap:8px;padding:6px 2px 10px}
+header h1{font-size:19px;font-weight:700;letter-spacing:-.01em;flex:1;min-width:0;white-space:nowrap}
+.header-actions{display:flex;gap:8px}
+.iconbtn{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);
+  color:var(--muted);display:grid;place-items:center;cursor:pointer;transition:transform .1s}
+.iconbtn:active{transform:scale(.93)}
+.iconbtn.on{color:var(--accent);border-color:var(--accent)}
+#installBtn{height:40px;padding:0 14px;border:none;border-radius:12px;background:var(--accent);
+  color:var(--on-accent);font-size:13px;font-weight:700;cursor:pointer}
+main{display:flex;flex-direction:column;gap:14px}
+.stage{display:flex;flex-direction:column;align-items:center;gap:12px;padding:6px 0 2px}
+.dial{position:relative;width:min(78vw,320px,52vh);aspect-ratio:1;cursor:pointer}
+.dial canvas{position:absolute;inset:0;width:100%;height:100%}
+.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;pointer-events:none;text-align:center}
+#rpmBig{font-size:clamp(38px,11vw,52px);font-weight:750;letter-spacing:-.02em;line-height:1;
+  font-variant-numeric:tabular-nums}
+.center .unit{font-size:13px;font-weight:600;color:var(--muted)}
+#period{font-size:12.5px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+#scaleBadge{margin-top:6px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;
+  background:var(--amber-soft);color:var(--amber)}
+.stats{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stats button{border:none;background:none;color:var(--accent-ink);font-size:12.5px;font-weight:600;cursor:pointer;padding:2px 4px}
+#playBtn{width:100%;height:52px;border:none;border-radius:14px;background:var(--accent);color:var(--on-accent);
+  font-size:16px;font-weight:700;cursor:pointer;transition:transform .1s}
+#playBtn:active{transform:scale(.98)}
+#playBtn.paused{background:var(--surface2);color:var(--ink);border:1px solid var(--line)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.stepper{display:flex;align-items:stretch;height:54px;border:1px solid var(--line);border-radius:14px;
+  background:var(--surface2);overflow:hidden;transition:border-color .15s}
+.stepper:focus-within{border-color:var(--accent)}
+.stepper.invalid{border-color:#e07a6d}
+.step{flex:0 0 52px;border:none;background:transparent;font-size:26px;line-height:1;cursor:pointer;
+  user-select:none;-webkit-user-select:none}
+.step:first-child{border-right:1px solid var(--line)}
+.step:last-child{border-left:1px solid var(--line)}
+.step:active{background:var(--accent-soft)}
+.inputwrap{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0}
+.inputwrap input{width:8ch;border:none;background:none;outline:none;padding:0;text-align:right;
+  font-size:21px;font-weight:650;font-variant-numeric:tabular-nums}
+.unit-s{font-size:13px;font-weight:600;color:var(--muted)}
+.sliderrow{display:flex;align-items:center;gap:10px;margin-top:14px}
+.sliderrow span{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+input[type=range]{flex:1;accent-color:var(--accent);height:28px}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.chip{border:1px solid var(--line);background:var(--surface2);border-radius:12px;padding:9px 6px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:2px;transition:border-color .15s,background .15s}
+.chip b{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.chip small{font-size:10.5px;color:var(--muted);line-height:1.2;text-align:center}
+.chip.active{border-color:var(--accent);background:var(--accent-soft)}
+.chip.hero{border-color:var(--accent)}
+.chip.hero b{color:var(--accent-ink)}
+details{font-size:13px;color:var(--muted);line-height:1.5}
+summary{cursor:pointer;font-weight:600;color:var(--ink);font-size:13.5px}
+details p{margin-top:8px}
+details label{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--ink);cursor:pointer}
+details input{accent-color:var(--accent);width:17px;height:17px}
+footer{margin-top:18px;text-align:center;font-size:11.5px;color:var(--muted);line-height:1.6}
+#offlineChip{color:var(--accent-ink);font-weight:600}
+#toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translate(-50%,12px);
+  background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13.5px;font-weight:600;
+  display:flex;gap:12px;align-items:center;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+  box-shadow:var(--shadow);max-width:calc(100vw - 32px);z-index:50}
+#toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#toastAction{border:none;background:none;color:inherit;font-weight:700;text-decoration:underline;cursor:pointer;padding:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <svg width="26" height="26" viewBox="0 0 512 512" aria-hidden="true">
+      <circle cx="256" cy="256" r="150" fill="none" stroke="var(--track)" stroke-width="14"/>
+      <path d="M204.7 115A150 150 0 0 1 362.1 149.9" fill="none" stroke="var(--accent)" stroke-width="26" stroke-linecap="round" opacity=".55"/>
+      <circle cx="362.1" cy="149.9" r="30" fill="var(--accent)"/>
+    </svg>
+    <h1>Обороты</h1>
+    <div class="header-actions">
+      <button id="installBtn" type="button" hidden>Установить</button>
+      <button id="soundBtn" class="iconbtn" type="button" aria-label="Звуковой такт" aria-pressed="false">
+        <svg id="icoSoundOff" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="m23 9-6 6M17 9l6 6"/></svg>
+        <svg id="icoSoundOn" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="stage" aria-label="Визуализация">
+      <div class="dial" id="dial" title="Нажми, чтобы поставить на паузу">
+        <canvas id="cv"></canvas>
+        <div class="center">
+          <span id="rpmBig">80</span>
+          <span class="unit">об/мин</span>
+          <span id="period">1 оборот = 0,75 с</span>
+          <span id="scaleBadge" hidden></span>
+        </div>
+      </div>
+      <div class="stats">
+        <span id="stats">⏱ 0:00 · 0 об.</span>
+        <button id="resetBtn" type="button">сброс</button>
+      </div>
+      <button id="playBtn" type="button">⏸ Пауза</button>
+    </section>
+
+    <section class="card" aria-label="Частота">
+      <label for="rpm">Частота вращения</label>
+      <div class="stepper">
+        <button type="button" class="step" data-dir="-1" aria-label="Уменьшить на 1"><span aria-hidden="true">−</span></button>
+        <div class="inputwrap">
+          <input id="rpm" type="text" inputmode="numeric" enterkeyhint="done" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="7" value="80">
+          <span class="unit-s">об/мин</span>
+        </div>
+        <button type="button" class="step" data-dir="1" aria-label="Увеличить на 1"><span aria-hidden="true">+</span></button>
+      </div>
+      <div class="sliderrow">
+        <span>1</span>
+        <input id="slider" type="range" min="0" max="1000" step="1" value="467" aria-label="Частота, логарифмическая шкала">
+        <span>12000</span>
+      </div>
+      <div class="presets" id="presets">
+        <button class="chip hero" type="button" data-rpm="80"><b>⚡ 80</b><small>генератор</small></button>
+        <button class="chip" type="button" data-rpm="60"><b>60</b><small>стрелка часов</small></button>
+        <button class="chip" type="button" data-rpm="1000"><b>1000</b><small>холостые авто</small></button>
+        <button class="chip" type="button" data-rpm="3000"><b>3000</b><small>крейсер</small></button>
+        <button class="chip" type="button" data-rpm="6000"><b>6000</b><small>отсечка авто</small></button>
+        <button class="chip" type="button" data-rpm="12000"><b>12000</b><small>спортбайк</small></button>
+      </div>
+    </section>
+
+    <section class="card">
+      <details>
+        <summary>Физика восприятия: почему выше порога — замедление</summary>
+        <p>Экран обновляется ~<span id="fpsVal">60</span> раз/с. Для плавного движения нужно ≳10 кадров на оборот — это до ~<span id="capVal">360</span> об/мин. До ~1800 направление ещё угадывается, выше — стробоскоп: 6000 об/мин на 60 Гц выглядит как 1200 об/мин <em>назад</em>, 12000 — как 1200 вперёд. Поэтому выше порога время честно замедляется (бейдж на циферблате), а число всегда показывает реальную частоту. Код ограничений не имеет — упираемся в развёртку экрана и глаз, который сливает мелькание выше ~20–30 Гц.</p>
+        <label><input id="rawMode" type="checkbox"> Показывать 1:1 даже выше порога (эксперимент: стробоскоп)</label>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    <p>Основной режим — 80 об/мин: ручной привод аварийного генератора.</p>
+    <p><span id="offlineChip" hidden>✓ работает офлайн</span> · v1.0.0</p>
+  </footer>
+</div>
+<div id="toast" role="status"><span id="toastText"></span><button id="toastAction" type="button" hidden></button></div>
+
+<script>
+(function(){
+'use strict';
+var KEY='rpm.v1', MIN=1, MAX=12000;
+var NICE=[1,2,5,10,20,50,100,200];
+var $=function(id){return document.getElementById(id);};
+var cv=$('cv'), ctx=cv.getContext('2d'), dial=$('dial');
+var rpmBig=$('rpmBig'), periodEl=$('period'), badge=$('scaleBadge'), statsEl=$('stats');
+var input=$('rpm'), slider=$('slider'), playBtn=$('playBtn');
+var reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+var rpm=80, running=!reduced, sound=false, raw=false;
+var fps=60, cap=360, scale=1;
+var phaseD=0, phaseT=0, runSec=0, lastTop=0, pulse=0;
+var lastT=0, raf=0, size=0, dpr=1;
+var fpsSamples=[], fpsDone=false;
+var actx=null;
+var hadController=!!(navigator.serviceWorker&&navigator.serviceWorker.controller);
+
+/* ---------- утилиты ---------- */
+function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
+function grp(n){return Math.floor(n).toLocaleString('ru-RU');}
+function parseRpm(s){s=String(s).trim().replace(/[\s\u00A0\u202F]/g,'');if(!s)return null;
+  var v=Number(s);return Number.isFinite(v)?v:null;}
+function periodText(r){var p=60/r;
+  if(p>=1)return '1 оборот = '+p.toFixed(2).replace('.',',')+' с';
+  var ms=p*1000;return '1 оборот = '+(ms>=10?ms.toFixed(0):ms.toFixed(1).replace('.',','))+' мс';}
+function timeText(s){s=Math.floor(s);var m=Math.floor(s/60),ss=s%60;
+  if(m>=60){var h=Math.floor(m/60);m%=60;return h+':'+String(m).padStart(2,'0')+':'+String(ss).padStart(2,'0');}
+  return m+':'+String(ss).padStart(2,'0');}
+
+/* ---------- масштаб и пресеты ---------- */
+function updateScale(){
+  cap=fps*6;
+  scale=1;
+  if(!raw){for(var i=0;i<NICE.length;i++){if(rpm/NICE[i]<=cap){scale=NICE[i];break;}scale=NICE[i];}}
+  $('fpsVal').textContent=fps; $('capVal').textContent=cap;
+  if(raw&&rpm>cap){badge.hidden=false;badge.textContent='1:1 · стробоскоп';}
+  else if(scale>1){badge.hidden=false;badge.textContent='замедлено ×'+scale;}
+  else badge.hidden=true;
+  rpmBig.textContent=grp(rpm);
+  periodEl.textContent=periodText(rpm);
+  var chips=document.querySelectorAll('.chip');
+  for(var j=0;j<chips.length;j++)chips[j].classList.toggle('active',+chips[j].dataset.rpm===rpm);
+}
+function setRpm(v,fromSlider){
+  rpm=clamp(Math.round(v),MIN,MAX);
+  input.value=grp(rpm);
+  if(!fromSlider)slider.value=Math.round(1000*Math.log(rpm)/Math.log(MAX));
+  updateScale();save();
+  if(!running)draw();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({rpm:rpm,sound:sound}));}catch(e){}}
+function load(){try{var s=JSON.parse(localStorage.getItem(KEY)||'{}');
+  if(typeof s.rpm==='number'&&isFinite(s.rpm))rpm=clamp(Math.round(s.rpm),MIN,MAX);
+  sound=!!s.sound;}catch(e){}}
+
+/* ---------- звук ---------- */
+function ensureAudio(){
+  if(!sound)return;
+  if(!actx){var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;actx=new AC();}
+  if(actx.state==='suspended')actx.resume();
+}
+function tick(){
+  if(!sound||!actx||actx.state!=='running')return;
+  var t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();
+  o.type='square';o.frequency.value=1800;
+  g.gain.setValueAtTime(.0001,t);
+  g.gain.exponentialRampToValueAtTime(.12,t+.003);
+  g.gain.exponentialRampToValueAtTime(.0001,t+.05);
+  o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+.06);
+}
+function soundUI(){
+  $('icoSoundOn').hidden=!sound;$('icoSoundOff').hidden=sound;
+  $('soundBtn').classList.toggle('on',sound);
+  $('soundBtn').setAttribute('aria-pressed',String(sound));
+}
+$('soundBtn').addEventListener('click',function(){sound=!sound;soundUI();ensureAudio();save();});
+document.addEventListener('pointerdown',function(){ensureAudio();},{once:true});
+
+/* ---------- canvas ---------- */
+function resize(){
+  var r=dial.getBoundingClientRect();
+  dpr=Math.min(window.devicePixelRatio||1,3);
+  size=r.width;
+  cv.width=Math.round(size*dpr);cv.height=Math.round(size*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+function draw(){
+  if(!size)return;
+  var c=size/2, R=c-20, core=Math.max(7,R*.075);
+  ctx.clearRect(0,0,size,size);
+  /* трек */
+  ctx.beginPath();ctx.arc(c,c,R,0,Math.PI*2);
+  ctx.strokeStyle='#39424c';ctx.lineWidth=3;ctx.stroke();
+  /* метка 12 часов + пульс оборота */
+  ctx.beginPath();
+  ctx.moveTo(c,c-R-7);ctx.lineTo(c,c-R+7);
+  ctx.strokeStyle='rgba(0,229,255,'+(0.3+pulse*0.7).toFixed(3)+')';
+  ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
+  var ang=phaseD*Math.PI*2-Math.PI/2;
+  var rps=rpm/60/scale;
+  var trail=clamp(rps*0.7,0.2,3.5), N=26;
+  /* хвост болида */
+  for(var i=N-1;i>=0;i--){
+    var a1=ang-trail*i/N, a0=ang-trail*(i+1)/N;
+    var k=1-i/N;
+    ctx.beginPath();ctx.arc(c,c,R,a0,a1);
+    ctx.strokeStyle='rgba(0,229,255,'+(k*k*0.55).toFixed(3)+')';
+    ctx.lineWidth=2+(core*1.6-2)*k;ctx.lineCap='round';ctx.stroke();
+  }
+  var hx=c+R*Math.cos(ang), hy=c+R*Math.sin(ang);
+  /* свечение */
+  var g=ctx.createRadialGradient(hx,hy,0,hx,hy,core*3.2);
+  g.addColorStop(0,'rgba(0,229,255,.5)');g.addColorStop(1,'rgba(0,229,255,0)');
+  ctx.beginPath();ctx.arc(hx,hy,core*3.2,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  /* ядро */
+  var hg=ctx.createRadialGradient(hx-core*.3,hy-core*.3,0,hx,hy,core);
+  hg.addColorStop(0,'#d9fbff');hg.addColorStop(.45,'#7ff0ff');hg.addColorStop(1,'#00cfe8');
+  ctx.beginPath();ctx.arc(hx,hy,core,0,Math.PI*2);ctx.fillStyle=hg;ctx.fill();
+}
+
+/* ---------- цикл ---------- */
+function loop(t){
+  var dt=Math.min((t-lastT)/1000,.1);lastT=t;
+  if(dt>0&&dt<.05&&!fpsDone){fpsSamples.push(dt);
+    if(fpsSamples.length>=90){fpsSamples.sort(function(a,b){return a-b;});
+      fps=clamp(Math.round(1/fpsSamples[45]),24,240);fpsDone=true;updateScale();}}
+  phaseT+=rpm/60*dt;
+  phaseD+=rpm/60/scale*dt;
+  runSec+=dt;
+  var top=Math.floor(phaseD);
+  if(top>lastTop){lastTop=top;pulse=1;tick();}
+  pulse*=Math.exp(-6*dt);
+  draw();
+  var s='⏱ '+timeText(runSec)+' · '+grp(phaseT)+' об.';
+  if(statsEl.textContent!==s)statsEl.textContent=s;
+  raf=requestAnimationFrame(loop);
+}
+function play(){
+  if(running)return;
+  running=true;lastT=performance.now();ensureAudio();
+  playBtn.textContent='⏸ Пауза';playBtn.classList.remove('paused');
+  raf=requestAnimationFrame(loop);
+}
+function pause(){
+  if(!running)return;
+  running=false;cancelAnimationFrame(raf);
+  playBtn.textContent='▶ Продолжить';playBtn.classList.add('paused');
+  draw();
+}
+playBtn.addEventListener('click',function(){running?pause():play();});
+dial.addEventListener('click',function(){running?pause():play();});
+document.addEventListener('keydown',function(e){
+  if(e.code==='Space'&&!/INPUT|TEXTAREA|SELECT|BUTTON/.test(e.target.tagName)){
+    e.preventDefault();running?pause():play();}
+});
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden&&running)lastT=performance.now();
+});
+$('resetBtn').addEventListener('click',function(){
+  phaseT=0;runSec=0;statsEl.textContent='⏱ 0:00 · 0 об.';
+});
+
+/* ---------- ввод ---------- */
+input.addEventListener('input',function(){
+  var v=parseRpm(input.value);
+  input.closest('.stepper').classList.toggle('invalid',v!=null&&(v<MIN||v>MAX));
+  if(v!=null&&v>=MIN&&v<=MAX)setRpm(v);
+});
+input.addEventListener('blur',function(){
+  var v=parseRpm(input.value);
+  if(v!=null)setRpm(v);else input.value=grp(rpm);
+  input.closest('.stepper').classList.remove('invalid');
+});
+input.addEventListener('focus',function(){input.select();});
+input.addEventListener('keydown',function(e){
+  var d=e.shiftKey?10:1;
+  if(e.key==='ArrowUp'){e.preventDefault();setRpm(rpm+d);}
+  else if(e.key==='ArrowDown'){e.preventDefault();setRpm(rpm-d);}
+  else if(e.key==='PageUp'){e.preventDefault();setRpm(rpm+100);}
+  else if(e.key==='PageDown'){e.preventDefault();setRpm(rpm-100);}
+  else if(e.key==='Enter'){e.preventDefault();input.blur();}
+});
+slider.addEventListener('input',function(){
+  setRpm(Math.exp(Number(slider.value)/1000*Math.log(MAX)),true);
+});
+$('presets').addEventListener('click',function(e){
+  var chip=e.target.closest('.chip');if(chip)setRpm(+chip.dataset.rpm);
+});
+$('rawMode').addEventListener('change',function(e){raw=e.target.checked;updateScale();if(!running)draw();});
+
+/* степперы с автоповтором и ускорением */
+Array.prototype.forEach.call(document.querySelectorAll('.step'),function(btn){
+  var dir=+btn.dataset.dir,t=null,iv=null,count=0;
+  function fire(){count++;setRpm(rpm+dir*(count>25?10:1));}
+  function stop(){clearTimeout(t);clearInterval(iv);t=iv=null;count=0;}
+  btn.addEventListener('pointerdown',function(e){e.preventDefault();stop();fire();
+    t=setTimeout(function(){iv=setInterval(fire,70);},450);});
+  ['pointerup','pointerleave','pointercancel'].forEach(function(ev){btn.addEventListener(ev,stop);});
+  btn.addEventListener('click',function(e){if(e.detail===0)fire();});
+  btn.addEventListener('contextmenu',function(e){e.preventDefault();});
+});
+
+/* ---------- тост / установка / SW ---------- */
+var toastTimer=null;
+function showToast(msg,label,cb){
+  $('toastText').textContent=msg;
+  var a=$('toastAction');
+  if(label){a.hidden=false;a.textContent=label;a.onclick=function(){$('toast').classList.remove('show');cb&&cb();};}
+  else{a.hidden=true;a.onclick=null;}
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(function(){$('toast').classList.remove('show');},label?8000:2200);
+}
+var deferred=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;$('installBtn').hidden=false;});
+$('installBtn').addEventListener('click',function(){
+  if(!deferred)return;deferred.prompt();
+  deferred.userChoice.then(function(){deferred=null;$('installBtn').hidden=true;});
+});
+window.addEventListener('appinstalled',function(){$('installBtn').hidden=true;showToast('Приложение установлено ✓');});
+function initSW(){
+  if(!('serviceWorker' in navigator)||!/^https?:$/.test(location.protocol))return;
+  navigator.serviceWorker.register('./sw.js').then(function(reg){
+    navigator.serviceWorker.ready.then(function(){$('offlineChip').hidden=false;});
+    function offer(){showToast('Доступна новая версия','Обновить',function(){
+      if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});});}
+    if(reg.waiting&&navigator.serviceWorker.controller)offer();
+    reg.addEventListener('updatefound',function(){
+      var nw=reg.installing;if(!nw)return;
+      nw.addEventListener('statechange',function(){
+        if(nw.state==='installed'&&navigator.serviceWorker.controller)offer();});});
+  }).catch(function(){});
+  var reloading=false;
+  navigator.serviceWorker.addEventListener('controllerchange',function(){
+    if(hadController&&!reloading){reloading=true;location.reload();}});
+}
+if(document.readyState==='complete')initSW();
+else window.addEventListener('load',initSW,{once:true});
+
+/* ---------- старт ---------- */
+load();soundUI();
+input.value=grp(rpm);
+slider.value=Math.round(1000*Math.log(rpm)/Math.log(MAX));
+updateScale();
+if('ResizeObserver' in window)new ResizeObserver(resize).observe(dial);
+else window.addEventListener('resize',resize);
+resize();
+if(running){playBtn.textContent='⏸ Пауза';lastT=performance.now();raf=requestAnimationFrame(loop);}
+else{playBtn.textContent='▶ Продолжить';playBtn.classList.add('paused');}
+})();
+</script>
+</body>
+</html>
